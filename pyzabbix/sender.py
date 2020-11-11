@@ -44,6 +44,7 @@ class ZabbixResponse(object):
     """The :class:`ZabbixResponse` contains the parsed response from Zabbix.
     """
     def __init__(self):
+        self._response = None
         self._processed = 0
         self._failed = 0
         self._total = 0
@@ -55,23 +56,29 @@ class ZabbixResponse(object):
 
     def __repr__(self):
         """Represent detailed ZabbixResponse view."""
-        result = json.dumps({'processed': self._processed,
-                             'failed': self._failed,
-                             'total': self._total,
-                             'time': str(self._time),
-                             'chunk': self._chunk})
+        if self._response is None:
+            result = json.dumps({'processed': self._processed,
+                                 'failed': self._failed,
+                                 'total': self._total,
+                                 'time': str(self._time),
+                                 'chunk': self._chunk})
+        else:
+            result = json.dumps(self._response)
         return result
 
     def parse(self, response):
         """Parse zabbix response."""
-        info = response.get('info')
-        res = self._regex.search(info)
+        if "info" in response:
+            info = response.get('info')
+            res = self._regex.search(info)
 
-        self._processed += int(res.group(1))
-        self._failed += int(res.group(2))
-        self._total += int(res.group(3))
-        self._time += Decimal(res.group(4))
-        self._chunk += 1
+            self._processed += int(res.group(1))
+            self._failed += int(res.group(2))
+            self._total += int(res.group(3))
+            self._time += Decimal(res.group(4))
+            self._chunk += 1
+        else:
+            self._response = response
 
     @property
     def processed(self):
@@ -310,7 +317,10 @@ class ZabbixSender(object):
         """
 
         msg = ','.join(messages)
-        request = '{{"request":"sender data","data":[{msg}]}}'.format(msg=msg)
+        if "request" in json.loads('{msg}'.format(msg=msg)):
+            request = '{msg}'.format(msg=msg)
+        else:
+            request = '{{"request":"sender data","data":[{msg}]}}'.format(msg=msg)
         request = request.encode("utf-8")
         logger.debug('Request: %s', request)
 
